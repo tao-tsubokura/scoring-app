@@ -1,24 +1,22 @@
 import { useState } from 'react'
 
-// 100点をn等分（端数は先頭問題に加算）
-function distributePoints(total, count) {
-  const base = Math.floor(total / count)
-  const remainder = total - base * count
-  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0))
+function formatPoints(pts) {
+  return Number.isInteger(pts) ? `${pts}` : pts.toFixed(1)
 }
 
 function buildProblems(problemDefs) {
-  const problemPoints = distributePoints(100, problemDefs.length)
+  const n = problemDefs.length
   return problemDefs.map((def, i) => {
-    const subPoints = distributePoints(problemPoints[i], def.blanks)
+    const problemPoints = 100 / n
+    const subPoints = problemPoints / def.blanks
     return {
       id: i,
       label: `問題${i + 1}`,
-      points: problemPoints[i],
+      points: problemPoints,
       subProblems: Array.from({ length: def.blanks }, (_, j) => ({
         id: j,
         label: `(${j + 1})`,
-        points: subPoints[j],
+        points: subPoints,
       })),
     }
   })
@@ -65,10 +63,6 @@ export default function TestSetup({ onComplete }) {
   const problemDefs = blanksPerProblem.slice(0, numProblems).map(blanks => ({ blanks }))
   const preview = buildProblems(problemDefs)
 
-  const handleSubmit = () => {
-    onComplete(preview)
-  }
-
   return (
     <div className="space-y-5">
       {/* 問題数設定 */}
@@ -101,10 +95,12 @@ export default function TestSetup({ onComplete }) {
               </div>
               {/* 配点プレビュー */}
               <div className="text-right">
-                <span className="text-indigo-400 font-semibold">{problem.points}点</span>
+                <span className="text-indigo-400 font-semibold">
+                  {formatPoints(problem.points)}点
+                </span>
                 {problem.subProblems.length > 1 && (
                   <p className="text-slate-500 text-xs mt-0.5">
-                    {problem.subProblems.map(s => `${s.points}`).join(' / ')} 点
+                    各 {formatPoints(problem.subProblems[0].points)}点 × {problem.subProblems.length}
                   </p>
                 )}
               </div>
@@ -120,7 +116,7 @@ export default function TestSetup({ onComplete }) {
       </div>
 
       <button
-        onClick={handleSubmit}
+        onClick={() => onComplete(preview)}
         className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-colors"
       >
         採点を開始 →

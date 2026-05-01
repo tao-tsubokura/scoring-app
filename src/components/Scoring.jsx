@@ -1,15 +1,71 @@
 import { useState } from 'react'
 
-function calcScore(points, attempt) {
-  if (attempt === 1) return points
-  if (attempt === 2) return Math.floor(points * 0.5)
-  return 0
+// --- LCMベースのスコア計算（PHP実装に準拠） ---
+
+function gcd(a, b) {
+  while (b !== 0) {
+    [a, b] = [b, a % b]
+  }
+  return Math.abs(a)
 }
+
+function lcm(a, b) {
+  if (a === 0 || b === 0) return 0
+  return Math.floor(Math.abs(a * b) / gcd(a, b))
+}
+
+/**
+ * 全問題のスコアを計算する。
+ * 問題ごとの解答欄数の違いをLCMで正規化し、偏りのない100点満点スコアを返す。
+ *
+ * attempt: 1=1回目正解(+2単位), 2=2回目正解(+1単位), 3=不正解(+0)
+ */
+function calculateTotalScore(problems, answers) {
+  const totalQuestionCount = problems.length
+  if (totalQuestionCount === 0) return 0
+
+  const sectionCounts = problems.map(p => p.subProblems.length)
+  const sectionsLcm = sectionCounts.reduce((acc, c) => lcm(acc, c), 1)
+  const scoreDenominator = 2 * totalQuestionCount * sectionsLcm
+
+  let weightedCorrectUnits = 0
+  problems.forEach((problem, pIdx) => {
+    const sectionCount = problem.subProblems.length
+    if (sectionCount === 0) return
+    const unitsPerSection = Math.floor(sectionsLcm / sectionCount)
+    problem.subProblems.forEach((_, sIdx) => {
+      const attempt = answers[pIdx][sIdx]
+      if (attempt === 1) weightedCorrectUnits += 2 * unitsPerSection
+      else if (attempt === 2) weightedCorrectUnits += unitsPerSection
+    })
+  })
+
+  return Math.floor(100 * weightedCorrectUnits / scoreDenominator)
+}
+
+/**
+ * 特定問題の得点を計算する（表示用）。
+ */
+function calcProblemScore(problem, problemAnswers, totalQuestionCount, sectionsLcm) {
+  const sectionCount = problem.subProblems.length
+  if (sectionCount === 0) return 0
+  const unitsPerSection = Math.floor(sectionsLcm / sectionCount)
+  let weightedCorrectUnits = 0
+  problem.subProblems.forEach((_, sIdx) => {
+    const attempt = problemAnswers[sIdx]
+    if (attempt === 1) weightedCorrectUnits += 2 * unitsPerSection
+    else if (attempt === 2) weightedCorrectUnits += unitsPerSection
+  })
+  const scoreDenominator = 2 * totalQuestionCount * sectionsLcm
+  return Math.floor(100 * weightedCorrectUnits / scoreDenominator)
+}
+
+// --- UI ---
 
 const OPTIONS = [
   { value: 1, label: '1回目正解', short: '○', bg: 'bg-emerald-600 hover:bg-emerald-500', ring: 'ring-emerald-400' },
   { value: 2, label: '2回目正解', short: '△', bg: 'bg-amber-600 hover:bg-amber-500', ring: 'ring-amber-400' },
-  { value: 3, label: '不正解', short: '✕', bg: 'bg-red-700 hover:bg-red-600', ring: 'ring-red-400' },
+  { value: 3, label: '不正解',   short: '✕', bg: 'bg-red-700 hover:bg-red-600',       ring: 'ring-red-400'   },
 ]
 
 export default function Scoring({ problems, onReset }) {
@@ -23,31 +79,26 @@ export default function Scoring({ problems, onReset }) {
     ))
   }
 
-  // リアルタイムスコア計算
-  const problemScores = problems.map((p, pIdx) =>
-    p.subProblems.reduce((sum, sub, sIdx) => {
-      const a = answers[pIdx][sIdx]
-      return sum + (a !== null ? calcScore(sub.points, a) : 0)
-    }, 0)
+  // LCMを1回だけ計算して各問題スコアに共有
+  const sectionCounts = problems.map(p => p.subProblems.length)
+  const sectionsLcm = sectionCounts.reduce((acc, c) => lcm(acc, c), 1)
+  const totalQuestionCount = problems.length
+
+  const problemScores = problems.map((problem, pIdx) =>
+    calcProblemScore(problem, answers[pIdx], totalQuestionCount, sectionsLcm)
   )
-  const totalScore = problemScores.reduce((a, b) => a + b, 0)
+  const totalScore = calculateTotalScore(problems, answers)
+
   const answeredCount = answers.flat().filter(a => a !== null).length
   const totalBlanks = answers.flat().length
-  const percentage = Math.round((totalScore / 100) * 100)
+  const percentage = totalScore
 
-  const gradeColor =
-    percentage >= 80 ? 'text-emerald-400' :
-    percentage >= 60 ? 'text-amber-400' :
-    'text-red-400'
-
-  const barColor =
-    percentage >= 80 ? 'bg-emerald-500' :
-    percentage >= 60 ? 'bg-amber-500' :
-    'bg-red-500'
+  const gradeColor = percentage >= 80 ? 'text-emerald-400' : percentage >= 60 ? 'text-amber-400' : 'text-red-400'
+  const barColor   = percentage >= 80 ? 'bg-emerald-500'   : percentage >= 60 ? 'bg-amber-500'   : 'bg-red-500'
 
   return (
     <div className="space-y-4">
-      {/* スコアボード（常に表示・リアルタイム更新） */}
+      {/* スコアボード */}
       <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5">
         <div className="flex items-end justify-between mb-3">
           <div>
@@ -76,54 +127,45 @@ export default function Scoring({ problems, onReset }) {
           <div className="flex items-center justify-between px-4 py-3 bg-slate-700/40">
             <span className="font-semibold text-white">{problem.label}</span>
             <div className="flex items-center gap-2">
-              <span className="text-slate-500 text-xs">配点 {problem.points}点</span>
-              <span className="text-white font-semibold">
-                {problemScores[pIdx]}点
-              </span>
+              <span className="text-slate-500 text-xs">配点 {(100 / totalQuestionCount).toFixed(1)}点</span>
+              <span className="text-white font-semibold">{problemScores[pIdx]}点</span>
             </div>
           </div>
 
           <div className="px-4 py-3 space-y-3">
             {problem.subProblems.map((sub, sIdx) => {
               const current = answers[pIdx][sIdx]
-              const earned = current !== null ? calcScore(sub.points, current) : null
-
               return (
                 <div key={sub.id} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  {/* ラベルと配点 */}
                   <div className="flex items-center gap-2 sm:w-24 shrink-0">
                     <span className="text-slate-300 text-sm font-medium">{sub.label}</span>
-                    <span className="text-slate-500 text-xs">{sub.points}点</span>
+                    <span className="text-slate-500 text-xs">{sub.points.toFixed(1)}点</span>
                   </div>
 
-                  {/* 選択ボタン */}
                   <div className="flex gap-2 flex-1">
-                    {OPTIONS.map(opt => {
-                      const isSelected = current === opt.value
-                      return (
-                        <button
-                          key={opt.value}
-                          onClick={() => setAttempt(pIdx, sIdx, opt.value)}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${opt.bg}
-                            ${isSelected ? `ring-2 ${opt.ring} scale-105` : 'opacity-40'}
-                          `}
-                        >
-                          <span className="block text-base">{opt.short}</span>
-                          <span className="block text-xs mt-0.5 hidden sm:block">{opt.label}</span>
-                        </button>
-                      )
-                    })}
+                    {OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setAttempt(pIdx, sIdx, opt.value)}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${opt.bg}
+                          ${current === opt.value ? `ring-2 ${opt.ring} scale-105` : 'opacity-40'}
+                        `}
+                      >
+                        <span className="block text-base">{opt.short}</span>
+                        <span className="block text-xs mt-0.5 hidden sm:block">{opt.label}</span>
+                      </button>
+                    ))}
                   </div>
 
-                  {/* 獲得点数 */}
-                  <div className="sm:w-12 text-right shrink-0">
-                    {earned !== null ? (
-                      <span className={`text-sm font-semibold ${earned > 0 ? 'text-white' : 'text-slate-500'}`}>
-                        {earned}点
-                      </span>
-                    ) : (
-                      <span className="text-slate-600 text-sm">—</span>
-                    )}
+                  <div className="sm:w-12 text-right shrink-0 text-sm font-semibold">
+                    {current === null
+                      ? <span className="text-slate-600">—</span>
+                      : current === 3
+                        ? <span className="text-slate-500">0点</span>
+                        : <span className="text-white">
+                            {current === 1 ? '○' : '△'}
+                          </span>
+                    }
                   </div>
                 </div>
               )
