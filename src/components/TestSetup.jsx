@@ -1,149 +1,127 @@
 import { useState } from 'react'
 
-// 問題設定の初期値
-const DEFAULT_POINTS = 20
-const DEFAULT_SUB_COUNT = 3
+// 100点をn等分（端数は先頭問題に加算）
+function distributePoints(total, count) {
+  const base = Math.floor(total / count)
+  const remainder = total - base * count
+  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0))
+}
 
-function createProblem(index) {
-  return {
-    id: index,
-    label: `問題${index + 1}`,
-    subProblems: Array.from({ length: DEFAULT_SUB_COUNT }, (_, i) => ({
+function buildProblems(problemDefs) {
+  const problemPoints = distributePoints(100, problemDefs.length)
+  return problemDefs.map((def, i) => {
+    const subPoints = distributePoints(problemPoints[i], def.blanks)
+    return {
       id: i,
-      label: `(${i + 1})`,
-      points: DEFAULT_POINTS,
-    })),
-  }
+      label: `問題${i + 1}`,
+      points: problemPoints[i],
+      subProblems: Array.from({ length: def.blanks }, (_, j) => ({
+        id: j,
+        label: `(${j + 1})`,
+        points: subPoints[j],
+      })),
+    }
+  })
+}
+
+function Counter({ value, onChange, min = 1, max = 20 }) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => onChange(Math.max(min, value - 1))}
+        disabled={value <= min}
+        className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors flex items-center justify-center"
+      >
+        −
+      </button>
+      <span className="w-8 text-center font-semibold text-white">{value}</span>
+      <button
+        onClick={() => onChange(Math.min(max, value + 1))}
+        disabled={value >= max}
+        className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors flex items-center justify-center"
+      >
+        ＋
+      </button>
+    </div>
+  )
 }
 
 export default function TestSetup({ onComplete }) {
-  const [problems, setProblems] = useState([createProblem(0)])
+  const [numProblems, setNumProblems] = useState(5)
+  const [blanksPerProblem, setBlanksPerProblem] = useState(Array(5).fill(1))
 
-  const addProblem = () => {
-    setProblems(prev => [...prev, createProblem(prev.length)])
+  const handleNumProblems = (n) => {
+    setNumProblems(n)
+    setBlanksPerProblem(prev => {
+      if (n > prev.length) return [...prev, ...Array(n - prev.length).fill(1)]
+      return prev.slice(0, n)
+    })
   }
 
-  const removeProblem = (idx) => {
-    setProblems(prev => prev.filter((_, i) => i !== idx).map((p, i) => ({ ...p, id: i, label: `問題${i + 1}` })))
+  const handleBlanks = (idx, val) => {
+    setBlanksPerProblem(prev => prev.map((v, i) => i === idx ? val : v))
   }
 
-  const addSubProblem = (pIdx) => {
-    setProblems(prev => prev.map((p, i) => {
-      if (i !== pIdx) return p
-      const newSub = {
-        id: p.subProblems.length,
-        label: `(${p.subProblems.length + 1})`,
-        points: DEFAULT_POINTS,
-      }
-      return { ...p, subProblems: [...p.subProblems, newSub] }
-    }))
-  }
-
-  const removeSubProblem = (pIdx, sIdx) => {
-    setProblems(prev => prev.map((p, i) => {
-      if (i !== pIdx) return p
-      const updated = p.subProblems
-        .filter((_, j) => j !== sIdx)
-        .map((s, j) => ({ ...s, id: j, label: `(${j + 1})` }))
-      return { ...p, subProblems: updated }
-    }))
-  }
-
-  const updatePoints = (pIdx, sIdx, value) => {
-    const num = parseInt(value, 10)
-    if (isNaN(num) || num < 0) return
-    setProblems(prev => prev.map((p, i) => {
-      if (i !== pIdx) return p
-      return {
-        ...p,
-        subProblems: p.subProblems.map((s, j) =>
-          j === sIdx ? { ...s, points: num } : s
-        ),
-      }
-    }))
-  }
-
-  const totalPoints = problems.reduce(
-    (sum, p) => sum + p.subProblems.reduce((s, sub) => s + sub.points, 0),
-    0
-  )
+  const problemDefs = blanksPerProblem.slice(0, numProblems).map(blanks => ({ blanks }))
+  const preview = buildProblems(problemDefs)
 
   const handleSubmit = () => {
-    const valid = problems.every(p => p.subProblems.length > 0)
-    if (!valid) return alert('各大問に小問を1つ以上設定してください')
-    onComplete(problems)
+    onComplete(preview)
   }
 
   return (
-    <div className="space-y-4">
-      {/* 合計表示 */}
-      <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
-        <span className="text-slate-400 text-sm">合計配点</span>
-        <span className="text-2xl font-bold text-indigo-400">{totalPoints} <span className="text-sm font-normal text-slate-400">点</span></span>
+    <div className="space-y-5">
+      {/* 問題数設定 */}
+      <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-white">大問数</p>
+            <p className="text-slate-400 text-sm mt-0.5">テストの問題数を設定</p>
+          </div>
+          <Counter value={numProblems} onChange={handleNumProblems} min={1} max={20} />
+        </div>
       </div>
 
-      {/* 問題リスト */}
-      {problems.map((problem, pIdx) => (
-        <div key={problem.id} className="bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
-          {/* 大問ヘッダー */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-700/50">
-            <span className="font-semibold text-white">{problem.label}</span>
-            <button
-              onClick={() => removeProblem(pIdx)}
-              disabled={problems.length === 1}
-              className="text-slate-500 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
-            >
-              削除
-            </button>
-          </div>
-
-          {/* 小問リスト */}
-          <div className="px-4 py-3 space-y-2">
-            {problem.subProblems.map((sub, sIdx) => (
-              <div key={sub.id} className="flex items-center gap-3">
-                <span className="text-slate-400 text-sm w-8 shrink-0">{sub.label}</span>
-                <div className="flex items-center gap-2 flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    value={sub.points}
-                    onChange={e => updatePoints(pIdx, sIdx, e.target.value)}
-                    className="w-20 bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-sm text-center focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <span className="text-slate-500 text-sm">点</span>
-                </div>
-                <button
-                  onClick={() => removeSubProblem(pIdx, sIdx)}
-                  disabled={problem.subProblems.length === 1}
-                  className="text-slate-600 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-
-            <button
-              onClick={() => addSubProblem(pIdx)}
-              className="mt-2 text-indigo-400 hover:text-indigo-300 text-sm flex items-center gap-1 transition-colors"
-            >
-              <span>+</span> 小問を追加
-            </button>
-          </div>
+      {/* 各問題の解答欄数 */}
+      <div className="bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 bg-slate-700/50">
+          <p className="font-semibold text-white text-sm">各問題の解答欄数と配点</p>
         </div>
-      ))}
+        <div className="divide-y divide-slate-700/50">
+          {preview.map((problem, i) => (
+            <div key={i} className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-4">
+                <span className="text-white font-medium w-14">{problem.label}</span>
+                <Counter
+                  value={blanksPerProblem[i]}
+                  onChange={(v) => handleBlanks(i, v)}
+                  min={1}
+                  max={10}
+                />
+              </div>
+              {/* 配点プレビュー */}
+              <div className="text-right">
+                <span className="text-indigo-400 font-semibold">{problem.points}点</span>
+                {problem.subProblems.length > 1 && (
+                  <p className="text-slate-500 text-xs mt-0.5">
+                    {problem.subProblems.map(s => `${s.points}`).join(' / ')} 点
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* 大問追加ボタン */}
-      <button
-        onClick={addProblem}
-        className="w-full border border-dashed border-slate-600 rounded-xl py-3 text-slate-400 hover:text-white hover:border-slate-400 transition-colors text-sm"
-      >
-        + 大問を追加
-      </button>
+      {/* 合計表示 */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-slate-400 text-sm">合計配点</span>
+        <span className="text-indigo-400 font-bold">100点</span>
+      </div>
 
-      {/* 採点開始ボタン */}
       <button
         onClick={handleSubmit}
-        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-colors mt-2"
+        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-colors"
       >
         採点を開始 →
       </button>

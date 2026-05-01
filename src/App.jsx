@@ -1,56 +1,35 @@
 import { useState } from 'react'
 import TestSetup from './components/TestSetup'
 import Scoring from './components/Scoring'
-import Results from './components/Results'
 import './index.css'
 
-// ステップ: 'setup' | 'scoring' | 'results'
 export default function App() {
   const [step, setStep] = useState('setup')
   const [problems, setProblems] = useState([])
-  const [answers, setAnswers] = useState([])
 
   const handleSetupComplete = (configuredProblems) => {
     setProblems(configuredProblems)
     setStep('scoring')
   }
 
-  const handleScoringComplete = (answersData) => {
-    setAnswers(answersData)
-    setStep('results')
-  }
-
   const handleReset = () => {
     setProblems([])
-    setAnswers([])
     setStep('setup')
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
       <div className="max-w-3xl mx-auto px-4 py-10">
-        {/* ヘッダー */}
         <div className="mb-10 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-white">
-            採点プログラム
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white">採点プログラム</h1>
           <p className="mt-2 text-slate-400 text-sm">テスト配点・採点計算ツール</p>
         </div>
 
-        {/* ステップインジケーター */}
         <StepIndicator currentStep={step} />
 
-        {/* メインコンテンツ */}
         <div className="mt-8">
-          {step === 'setup' && (
-            <TestSetup onComplete={handleSetupComplete} />
-          )}
-          {step === 'scoring' && (
-            <Scoring problems={problems} onComplete={handleScoringComplete} onBack={() => setStep('setup')} />
-          )}
-          {step === 'results' && (
-            <Results problems={problems} answers={answers} onReset={handleReset} />
-          )}
+          {step === 'setup' && <TestSetup onComplete={handleSetupComplete} />}
+          {step === 'scoring' && <Scoring problems={problems} onReset={handleReset} />}
         </div>
       </div>
     </div>
@@ -60,13 +39,12 @@ export default function App() {
 function StepIndicator({ currentStep }) {
   const steps = [
     { key: 'setup', label: 'テスト設定' },
-    { key: 'scoring', label: '採点入力' },
-    { key: 'results', label: '結果' },
+    { key: 'scoring', label: '採点・結果' },
   ]
   const currentIndex = steps.findIndex(s => s.key === currentStep)
 
   return (
-    <div className="flex items-center justify-center gap-0">
+    <div className="flex items-center justify-center">
       {steps.map((step, i) => (
         <div key={step.key} className="flex items-center">
           <div className="flex flex-col items-center">
@@ -82,7 +60,7 @@ function StepIndicator({ currentStep }) {
             </span>
           </div>
           {i < steps.length - 1 && (
-            <div className={`w-16 h-0.5 mb-4 mx-1 transition-colors ${i < currentIndex ? 'bg-indigo-500' : 'bg-slate-700'}`} />
+            <div className={`w-24 h-0.5 mb-4 mx-1 transition-colors ${i < currentIndex ? 'bg-indigo-500' : 'bg-slate-700'}`} />
           )}
         </div>
       ))}
