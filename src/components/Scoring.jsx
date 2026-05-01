@@ -93,8 +93,8 @@ export default function Scoring({ problems, onReset }) {
   const totalBlanks = answers.flat().length
   const percentage = totalScore
 
-  const gradeColor = percentage >= 80 ? 'text-emerald-400' : percentage >= 60 ? 'text-amber-400' : 'text-red-400'
-  const barColor   = percentage >= 80 ? 'bg-emerald-500'   : percentage >= 60 ? 'bg-amber-500'   : 'bg-red-500'
+  const gradeColor = percentage === 100 ? 'text-emerald-400' : percentage >= 60 ? 'text-amber-400' : 'text-red-400'
+  const barColor   = percentage === 100 ? 'bg-emerald-500'   : percentage >= 60 ? 'bg-amber-500'   : 'bg-red-500'
 
   return (
     <div className="space-y-4">
