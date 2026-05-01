@@ -98,8 +98,8 @@ export default function Scoring({ problems, onReset }) {
 
   return (
     <div className="space-y-4">
-      {/* スコアボード */}
-      <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5">
+      {/* スコアボード（スクロール時固定） */}
+      <div className="sticky top-4 z-10 bg-slate-800/80 backdrop-blur border border-slate-700 rounded-xl p-5 shadow-lg">
         <div className="flex items-end justify-between mb-3">
           <div>
             <p className="text-slate-400 text-sm">合計得点</p>
